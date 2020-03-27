@@ -2356,32 +2356,6 @@ Point.getN = function getN() {
   return new BN(ec.curve.n.toArray());
 };
 
-if (!Point.prototype._getX)
-  Point.prototype._getX = Point.prototype.getX;
-
-/**
- *
- * Will return the X coordinate of the Point
- *
- * @returns {BN} A BN instance of the X coordinate
- */
-Point.prototype.getX = function getX() {
-  return new BN(this._getX().toArray());
-};
-
-if (!Point.prototype._getY)
-  Point.prototype._getY = Point.prototype.getY;
-
-/**
- *
- * Will return the Y coordinate of the Point
- *
- * @returns {BN} A BN instance of the Y coordinate
- */
-Point.prototype.getY = function getY() {
-  return new BN(this._getY().toArray());
-};
-
 /**
  *
  * Will determine if the point is valid
@@ -10818,6 +10792,9 @@ Transaction.NLOCKTIME_MAX_VALUE = 4294967295;
 // Value used for fee estimation (satoshis per kilobyte)
 Transaction.FEE_PER_KB = 100000;
 
+// Value used for fee estimation (satoshis per byte)
+Transaction.FEE_PER_BYTE = 1;
+
 // Safe upper bound for change address script size in bytes
 Transaction.CHANGE_OUTPUT_MAX_SIZE = 20 + 4 + 34 + 4;
 Transaction.MAXIMUM_EXTRA_SIZE = 4 + 9 + 9 + 4;
@@ -11403,6 +11380,7 @@ Transaction.prototype.fee = function(amount) {
  * Manually set the fee per KB for this transaction. Beware that this resets all the signatures
  * for inputs (in further versions, SIGHASH_SINGLE or SIGHASH_NONE signatures will not
  * be reset).
+ * Takes priority over fee per Byte, for backwards compatibility
  *
  * @param {number} amount satoshis per KB to be sent
  * @return {Transaction} this, for chaining
@@ -11410,6 +11388,22 @@ Transaction.prototype.fee = function(amount) {
 Transaction.prototype.feePerKb = function(amount) {
   $.checkArgument(_.isNumber(amount), 'amount must be a number');
   this._feePerKb = amount;
+  this._updateChangeOutput();
+  return this;
+};
+
+/**
+ * Manually set the fee per Byte for this transaction. Beware that this resets all the signatures
+ * for inputs (in further versions, SIGHASH_SINGLE or SIGHASH_NONE signatures will not
+ * be reset).
+ * fee per Byte will be ignored if fee per KB is set
+ *
+ * @param {number} amount satoshis per Byte to be sent
+ * @return {Transaction} this, for chaining
+ */
+Transaction.prototype.feePerByte = function(amount) {
+  $.checkArgument(_.isNumber(amount), 'amount must be a number');
+  this._feePerByte = amount;
   this._updateChangeOutput();
   return this;
 };
@@ -11626,7 +11620,11 @@ Transaction.prototype.getFee = function() {
 Transaction.prototype._estimateFee = function() {
   var estimatedSize = this._estimateSize();
   var available = this._getUnspentValue();
-  return Transaction._estimateFee(estimatedSize, available, this._feePerKb);
+  if (this._feePerByte && !this._feePerKb) {
+    return Transaction._estimateFeePerByte(estimatedSize, available, this._feePerByte);
+  } else {
+    return Transaction._estimateFeePerKb(estimatedSize, available, this._feePerKb);
+  }
 };
 
 Transaction.prototype._getUnspentValue = function() {
@@ -11639,12 +11637,20 @@ Transaction.prototype._clearSignatures = function() {
   });
 };
 
-Transaction._estimateFee = function(size, amountAvailable, feePerKb) {
+Transaction._estimateFeePerKb = function(size, amountAvailable, feePerKb) {
   var fee = Math.ceil(size / 1000) * (feePerKb || Transaction.FEE_PER_KB);
   if (amountAvailable > fee) {
     size += Transaction.CHANGE_OUTPUT_MAX_SIZE;
   }
   return Math.ceil(size / 1000) * (feePerKb || Transaction.FEE_PER_KB);
+};
+
+Transaction._estimateFeePerByte = function(size, amountAvailable, feePerByte) {
+  var fee = size * (feePerByte || Transaction.FEE_PER_BYTE);
+  if (amountAvailable > fee) {
+    size += Transaction.CHANGE_OUTPUT_MAX_SIZE;
+  }
+  return size * (feePerByte || Transaction.FEE_PER_BYTE);
 };
 
 Transaction.prototype._estimateSize = function() {
@@ -29236,7 +29242,13 @@ utils.intFromLE = intFromLE;
 
 },{"bn.js":65,"minimalistic-assert":159,"minimalistic-crypto-utils":160}],134:[function(require,module,exports){
 module.exports={
-  "_from": "elliptic@=6.4.0",
+  "_args": [
+    [
+      "elliptic@6.4.0",
+      "/Users/andreas/Repos/bitcore-lib-cash"
+    ]
+  ],
+  "_from": "elliptic@6.4.0",
   "_id": "elliptic@6.4.0",
   "_inBundle": false,
   "_integrity": "sha1-ysmvh2LIWDYYcAPI3+GT5eLq5d8=",
@@ -29245,12 +29257,12 @@ module.exports={
   "_requested": {
     "type": "version",
     "registry": true,
-    "raw": "elliptic@=6.4.0",
+    "raw": "elliptic@6.4.0",
     "name": "elliptic",
     "escapedName": "elliptic",
-    "rawSpec": "=6.4.0",
+    "rawSpec": "6.4.0",
     "saveSpec": null,
-    "fetchSpec": "=6.4.0"
+    "fetchSpec": "6.4.0"
   },
   "_requiredBy": [
     "/",
@@ -29258,9 +29270,8 @@ module.exports={
     "/create-ecdh"
   ],
   "_resolved": "https://registry.npmjs.org/elliptic/-/elliptic-6.4.0.tgz",
-  "_shasum": "cac9af8762c85836187003c8dfe193e5e2eae5df",
-  "_spec": "elliptic@=6.4.0",
-  "_where": "/Users/ematiu/dev/bitcore-lib-cash",
+  "_spec": "6.4.0",
+  "_where": "/Users/andreas/Repos/bitcore-lib-cash",
   "author": {
     "name": "Fedor Indutny",
     "email": "fedor@indutny.com"
@@ -29268,7 +29279,6 @@ module.exports={
   "bugs": {
     "url": "https://github.com/indutny/elliptic/issues"
   },
-  "bundleDependencies": false,
   "dependencies": {
     "bn.js": "^4.4.0",
     "brorand": "^1.0.1",
@@ -29278,7 +29288,6 @@ module.exports={
     "minimalistic-assert": "^1.0.0",
     "minimalistic-crypto-utils": "^1.0.0"
   },
-  "deprecated": false,
   "description": "EC cryptography",
   "devDependencies": {
     "brfs": "^1.4.3",
